@@ -23,13 +23,15 @@ type ServiceUpdateRequest struct {
 	StopSignal string `json:"stop_signal"`
 }
 
-var AllowedStopSignals = [...]string{"QUIT", "SIGTERM", "SIGKILL"}
-var DefaultStopSignal string = "SIGTERM"
+var (
+	AllowedStopSignals        = [...]string{"QUIT", "SIGTERM", "SIGKILL"}
+	DefaultStopSignal  string = "SIGTERM"
 
-var DockerHost string
-var ServerHost string
-var ServerPort string
-var ServerDebug bool
+	DockerHost  string
+	ServerHost  string
+	ServerPort  string
+	ServerDebug bool
+)
 
 var serveCmd = &cobra.Command{
 	Use:   "serve",

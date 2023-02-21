@@ -14,8 +14,7 @@ var rootCmd = &cobra.Command{
 registering services can be done via a cli and data is stored in a SQLite database.`}
 
 func Execute() {
-	err := rootCmd.Execute()
-	if err != nil {
+	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)
 	}
 }

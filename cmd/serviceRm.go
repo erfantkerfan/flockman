@@ -24,8 +24,8 @@ var rmCmd = &cobra.Command{
 		if err != nil {
 			panic(fmt.Errorf("%v", err))
 		}
-		deleteResult := db.Where("service_name = ?", args[0]).Delete(&Service{})
-		if deleteResult.RowsAffected != 1 {
+
+		if deleteResult := db.Where("service_name = ?", args[0]).Delete(&Service{}); deleteResult.RowsAffected != 1 {
 			panic(fmt.Errorf("got error with %v rows affected", deleteResult.RowsAffected))
 		}
 	},
