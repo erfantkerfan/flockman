@@ -111,8 +111,6 @@ func serviceUpdate(ctx *gin.Context) {
 		return
 	}
 
-	// filterName := filters.NewArgs(filters.KeyValuePair{Key: "name", Value: service.ServiceName})
-	// services, err := dockerClient.ServiceList(context.Background(), types.ServiceListOptions{Filters: filterName})
 	targetService, _, err := dockerClient.ServiceInspectWithRaw(ctx, service.ServiceName, types.ServiceInspectOptions{})
 	if err != nil {
 		ctx.JSON(http.StatusUnprocessableEntity, gin.H{})
