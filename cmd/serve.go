@@ -67,8 +67,7 @@ func init() {
 }
 
 func node(ctx *gin.Context) {
-	// dockerClient, err := client.NewClientWithOpts(client.WithHost(DockrHost)) //ToDo:fix this on new docker versions
-	dockerClient, err := client.NewClientWithOpts(client.WithVersion("1.41"), client.WithHost(DockerHost))
+	dockerClient, err := client.NewClientWithOpts(client.WithHost(DockerHost)) //ToDo:fix this on new docker versions
 	if err != nil {
 		panic(err)
 	}
@@ -83,8 +82,7 @@ func node(ctx *gin.Context) {
 }
 
 func serviceUpdate(ctx *gin.Context) {
-	// dockerClient, err := client.NewClientWithOpts(client.WithHost(DockrHost)) //ToDo:fix this on new docker versions
-	dockerClient, err := client.NewClientWithOpts(client.WithVersion("1.41"), client.WithHost(DockerHost))
+	dockerClient, err := client.NewClientWithOpts(client.WithHost(DockerHost)) //ToDo:fix this on new docker versions
 	if err != nil {
 		panic(err)
 	}
