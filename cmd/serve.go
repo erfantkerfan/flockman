@@ -18,7 +18,6 @@ import (
 type ServiceUpdateRequest struct {
 	Token      string `json:"token" binding:"required"`
 	Tag        string `json:"tag" binding:"required"`
-	PullFirst  bool   `json:"pull_first"`
 	StartFirst bool   `json:"start_first"`
 	StopSignal string `json:"stop_signal"`
 }
@@ -132,15 +131,6 @@ func serviceUpdate(ctx *gin.Context) {
 		targetService.Spec.UpdateConfig = &swarm.UpdateConfig{
 			FailureAction: swarm.UpdateFailureActionRollback,
 			Order:         swarm.UpdateOrderStartFirst,
-		}
-	}
-
-	if bodyObject.PullFirst {
-		// authConfig := types.AuthConfig{} //ToDO:test this part with a private repo
-		_, err = dockerClient.ImagePull(ctx, targetService.Spec.TaskTemplate.ContainerSpec.Image, types.ImagePullOptions{})
-		if err != nil {
-			ctx.AbortWithError(http.StatusUnprocessableEntity, fmt.Errorf("image:%v could not be pulled", targetService.Spec.TaskTemplate.ContainerSpec.Image))
-			return
 		}
 	}
 
