@@ -6,12 +6,17 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var DatabaseFile string
+var (
+	DatabaseFile string
+	version      string = "1.0.0"
+)
 var rootCmd = &cobra.Command{
 	Use:   "flockman",
 	Short: "flockman is responsible for updating you docker services",
 	Long: `flockman exposes apis to call updates for you docker services,
-registering services can be done via a cli and data is stored in a SQLite database.`}
+registering services can be done via a cli and data is stored in a SQLite database.`,
+	Version: version,
+}
 
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
