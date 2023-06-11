@@ -107,7 +107,7 @@ func serviceUpdate(ctx *gin.Context) {
 	var service Service
 	queryResult := db.Where("token = ?", bodyObject.Token).Find(&service)
 	if queryResult.RowsAffected != 1 {
-		ctx.AbortWithError(http.StatusNotFound, err)
+		ctx.AbortWithError(http.StatusNotFound, fmt.Errorf("token not found"))
 		return
 	}
 
