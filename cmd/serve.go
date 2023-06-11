@@ -83,7 +83,7 @@ func node(ctx *gin.Context) {
 		panic(err)
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"Node Name": nodeName.Name})
+	ctx.JSON(http.StatusOK, gin.H{"node_name": nodeName.Name})
 }
 
 func serviceStatus(ctx *gin.Context) {
