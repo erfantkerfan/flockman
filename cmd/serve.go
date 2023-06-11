@@ -15,6 +15,10 @@ import (
 	"gorm.io/gorm"
 )
 
+type ServiceStatusRequest struct {
+	Token string `json:"token" binding:"required"`
+}
+
 type ServiceUpdateRequest struct {
 	Token      string `json:"token" binding:"required"`
 	Tag        string `json:"tag" binding:"required"`
@@ -49,6 +53,7 @@ var serveCmd = &cobra.Command{
 			v1 := api.Group("/v1")
 			{
 				v1.GET("/node", node)
+				v1.POST("/service/status", serviceStatus)
 				v1.POST("/service/update", serviceUpdate)
 			}
 		}
@@ -79,6 +84,43 @@ func node(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"Node Name": nodeName.Name})
+}
+
+func serviceStatus(ctx *gin.Context) {
+	dockerClient, err := client.NewClientWithOpts(client.WithHost(DockerHost))
+	if err != nil {
+		panic(err)
+	}
+	defer dockerClient.Close()
+
+	bodyObject := ServiceStatusRequest{}
+	if err := ctx.BindJSON(&bodyObject); err != nil {
+		ctx.AbortWithError(http.StatusUnprocessableEntity, err)
+		return
+	}
+
+	db, err := gorm.Open(sqlite.Open(DatabaseFile), &gorm.Config{})
+	if err != nil {
+		ctx.AbortWithError(http.StatusInternalServerError, err)
+		return
+	}
+	var service Service
+	queryResult := db.Where("token = ?", bodyObject.Token).Find(&service)
+	if queryResult.RowsAffected != 1 {
+		ctx.AbortWithError(http.StatusNotFound, fmt.Errorf("token not found"))
+		return
+	}
+
+	targetService, _, err := dockerClient.ServiceInspectWithRaw(ctx, service.ServiceName, types.ServiceInspectOptions{})
+	if err != nil {
+		ctx.JSON(http.StatusUnprocessableEntity, gin.H{})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"service": service.ServiceName,
+		"image":   targetService.Spec.TaskTemplate.ContainerSpec.Image,
+	})
 }
 
 func serviceUpdate(ctx *gin.Context) {
