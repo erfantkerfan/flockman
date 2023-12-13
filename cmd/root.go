@@ -8,7 +8,7 @@ import (
 
 var (
 	DatabaseFile string
-	version      string = "1.2.0"
+	version      string = "1.2.1"
 )
 var rootCmd = &cobra.Command{
 	Use:   "flockman",
