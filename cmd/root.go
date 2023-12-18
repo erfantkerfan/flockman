@@ -12,7 +12,7 @@ var (
 )
 var rootCmd = &cobra.Command{
 	Use:   "flockman",
-	Short: "flockman is responsible for updating you docker services",
+	Short: "flockman is responsible for updating you docker swarm services",
 	Long: `flockman exposes apis to call updates for you docker services,
 registering services can be done via a cli and data is stored in a SQLite database.`,
 	Version: version,
