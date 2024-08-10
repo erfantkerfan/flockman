@@ -4,7 +4,7 @@ go 1.22
 
 require (
 	github.com/aidarkhanov/nanoid/v2 v2.0.5
-	github.com/docker/docker v26.1.4+incompatible
+	github.com/docker/docker v26.1.5+incompatible
 	github.com/gin-gonic/gin v1.9.1
 	github.com/spf13/cobra v1.8.0
 	gorm.io/driver/sqlite v1.5.5
