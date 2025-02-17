@@ -1,6 +1,8 @@
 module github.com/erfantkerfan/flockman
 
-go 1.22
+go 1.22.0
+
+toolchain go1.23.6
 
 require (
 	github.com/aidarkhanov/nanoid/v2 v2.0.5
