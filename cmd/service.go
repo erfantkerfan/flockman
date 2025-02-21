@@ -3,12 +3,13 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/glebarez/sqlite"
 	"github.com/spf13/cobra"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
 const DefaultSize = 64
+
 type Service struct {
 	Token       string `gorm:"primaryKey"`
 	ServiceName string `gorm:"unique"`
