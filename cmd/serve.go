@@ -59,6 +59,7 @@ var serveCmd = &cobra.Command{
 		}
 		router.NoRoute(func(ctx *gin.Context) { ctx.JSON(http.StatusNotFound, gin.H{"error":"Route not found"}) })
 
+		fmt.Println("version: " + version)
 		fmt.Println("trying to bind to " + ServerHost + ":" + ServerPort)
 		router.Run(ServerHost + ":" + ServerPort)
 	},
