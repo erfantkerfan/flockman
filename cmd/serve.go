@@ -57,7 +57,7 @@ var serveCmd = &cobra.Command{
 				v1.POST("/service/update", serviceUpdate)
 			}
 		}
-		router.NoRoute(func(ctx *gin.Context) { ctx.JSON(http.StatusNotFound, gin.H{}) })
+		router.NoRoute(func(ctx *gin.Context) { ctx.JSON(http.StatusNotFound, gin.H{"error":"Route not found"}) })
 
 		fmt.Println("trying to bind to " + ServerHost + ":" + ServerPort)
 		router.Run(ServerHost + ":" + ServerPort)
@@ -75,13 +75,15 @@ func init() {
 func node(ctx *gin.Context) {
 	dockerClient, err := client.NewClientWithOpts(client.WithHost(DockerHost))
 	if err != nil {
-		panic(err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 	defer dockerClient.Close()
 
 	nodeName, err := dockerClient.Info(context.Background())
 	if err != nil {
-		panic(err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{"node_name": nodeName.Name})
@@ -90,31 +92,32 @@ func node(ctx *gin.Context) {
 func serviceStatus(ctx *gin.Context) {
 	dockerClient, err := client.NewClientWithOpts(client.WithHost(DockerHost))
 	if err != nil {
-		panic(err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 	defer dockerClient.Close()
 
 	bodyObject := ServiceStatusRequest{}
 	if err := ctx.BindJSON(&bodyObject); err != nil {
-		ctx.AbortWithError(http.StatusUnprocessableEntity, err)
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	db, err := gorm.Open(sqlite.Open(DatabaseFile), &gorm.Config{})
 	if err != nil {
-		ctx.AbortWithError(http.StatusInternalServerError, err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	var service Service
 	queryResult := db.Where("token = ?", bodyObject.Token).Find(&service)
 	if queryResult.RowsAffected != 1 {
-		ctx.AbortWithError(http.StatusNotFound, fmt.Errorf("token not found"))
+		ctx.JSON(http.StatusNotFound, gin.H{"error": "token not found"})
 		return
 	}
 
 	targetService, _, err := dockerClient.ServiceInspectWithRaw(ctx, service.ServiceName, types.ServiceInspectOptions{})
 	if err != nil {
-		ctx.JSON(http.StatusUnprocessableEntity, gin.H{})
+		ctx.JSON(http.StatusUnprocessableEntity, gin.H{"error": "docker service could not be retrieved or non existent"})
 		return
 	}
 
@@ -127,36 +130,38 @@ func serviceStatus(ctx *gin.Context) {
 func serviceUpdate(ctx *gin.Context) {
 	dockerClient, err := client.NewClientWithOpts(client.WithHost(DockerHost))
 	if err != nil {
-		panic(err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
 	}
 	defer dockerClient.Close()
 
 	bodyObject := ServiceUpdateRequest{}
-	if err := ctx.BindJSON(&bodyObject); err != nil {
-		ctx.AbortWithError(http.StatusUnprocessableEntity, err)
+	err = ctx.ShouldBindJSON(&bodyObject)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	if !isAllowedStopSignals(&bodyObject.StopSignal) {
-		ctx.AbortWithError(http.StatusUnprocessableEntity, fmt.Errorf("stop signal not valid"))
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "stop signal not valid"})
 		return
 	}
 
 	db, err := gorm.Open(sqlite.Open(DatabaseFile), &gorm.Config{})
 	if err != nil {
-		ctx.AbortWithError(http.StatusInternalServerError, err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	var service Service
 	queryResult := db.Where("token = ?", bodyObject.Token).Find(&service)
 	if queryResult.RowsAffected != 1 {
-		ctx.AbortWithError(http.StatusNotFound, fmt.Errorf("token not found"))
+		ctx.JSON(http.StatusNotFound, gin.H{"error": "token not found"})
 		return
 	}
 
 	targetService, _, err := dockerClient.ServiceInspectWithRaw(ctx, service.ServiceName, types.ServiceInspectOptions{})
 	if err != nil {
-		ctx.JSON(http.StatusUnprocessableEntity, gin.H{})
+		ctx.JSON(http.StatusUnprocessableEntity, gin.H{"error": "docker service could not be retrieved or non existent"})
 		return
 	}
 
@@ -175,7 +180,7 @@ func serviceUpdate(ctx *gin.Context) {
 
 	_, err = dockerClient.ServiceUpdate(ctx, targetService.ID, targetService.Version, targetService.Spec, types.ServiceUpdateOptions{})
 	if err != nil {
-		ctx.AbortWithError(http.StatusInternalServerError, err)
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
