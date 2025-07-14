@@ -5,6 +5,7 @@ Flockman is tool designed to help DevOps with a simple tool to rollout updates t
 - Secure and Simple
 - written in [GO](https://go.dev/)
 - small packaged binary for starting server and also a cli tool for management purposes
+- appends current image tag to environment variables inside the container with the key of `FLOCKMAN_IMAGE_TAG`
 
 ## Learning Flockman
 
