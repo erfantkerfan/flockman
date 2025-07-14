@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/swarm"
 	"github.com/docker/docker/client"
 	"github.com/gin-gonic/gin"
@@ -116,7 +115,7 @@ func serviceStatus(ctx *gin.Context) {
 		return
 	}
 
-	targetService, _, err := dockerClient.ServiceInspectWithRaw(ctx, service.ServiceName, types.ServiceInspectOptions{})
+	targetService, _, err := dockerClient.ServiceInspectWithRaw(ctx, service.ServiceName, swarm.ServiceInspectOptions{})
 	if err != nil {
 		ctx.JSON(http.StatusUnprocessableEntity, gin.H{"error": "docker service could not be retrieved or non existent"})
 		return
@@ -160,7 +159,7 @@ func serviceUpdate(ctx *gin.Context) {
 		return
 	}
 
-	targetService, _, err := dockerClient.ServiceInspectWithRaw(ctx, service.ServiceName, types.ServiceInspectOptions{})
+	targetService, _, err := dockerClient.ServiceInspectWithRaw(ctx, service.ServiceName, swarm.ServiceInspectOptions{})
 	if err != nil {
 		ctx.JSON(http.StatusUnprocessableEntity, gin.H{"error": "docker service could not be retrieved or non existent"})
 		return
@@ -181,7 +180,7 @@ func serviceUpdate(ctx *gin.Context) {
 
 	targetService.Spec.TaskTemplate.ContainerSpec.Env = append(targetService.Spec.TaskTemplate.ContainerSpec.Env, "FLOCKMAN_IMAGE_TAG=" + bodyObject.Tag)
 
-	_, err = dockerClient.ServiceUpdate(ctx, targetService.ID, targetService.Version, targetService.Spec, types.ServiceUpdateOptions{})
+	_, err = dockerClient.ServiceUpdate(ctx, targetService.ID, targetService.Version, targetService.Spec, swarm.ServiceUpdateOptions{})
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
