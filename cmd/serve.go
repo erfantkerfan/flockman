@@ -179,6 +179,8 @@ func serviceUpdate(ctx *gin.Context) {
 		}
 	}
 
+	targetService.Spec.TaskTemplate.ContainerSpec.Env = append(targetService.Spec.TaskTemplate.ContainerSpec.Env, "FLOCKMAN_IMAGE_TAG=" + bodyObject.Tag)
+
 	_, err = dockerClient.ServiceUpdate(ctx, targetService.ID, targetService.Version, targetService.Spec, types.ServiceUpdateOptions{})
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
