@@ -179,6 +179,7 @@ func serviceUpdate(ctx *gin.Context) {
 	}
 
 	targetService.Spec.TaskTemplate.ContainerSpec.Env = append(targetService.Spec.TaskTemplate.ContainerSpec.Env, "FLOCKMAN_IMAGE_TAG=" + bodyObject.Tag)
+	targetService.Spec.TaskTemplate.ContainerSpec.Env = append(targetService.Spec.TaskTemplate.ContainerSpec.Env, "FLOCKMAN_IMAGE_REPO=" + oldRepository)
 
 	_, err = dockerClient.ServiceUpdate(ctx, targetService.ID, targetService.Version, targetService.Spec, swarm.ServiceUpdateOptions{})
 	if err != nil {
