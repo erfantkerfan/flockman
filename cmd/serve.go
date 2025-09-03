@@ -56,7 +56,7 @@ var serveCmd = &cobra.Command{
 				v1.POST("/service/update", serviceUpdate)
 			}
 		}
-		router.NoRoute(func(ctx *gin.Context) { ctx.JSON(http.StatusNotFound, gin.H{"error":"Route not found"}) })
+		router.NoRoute(func(ctx *gin.Context) { ctx.JSON(http.StatusNotFound, gin.H{"error": "Route not found"}) })
 
 		fmt.Println("version: " + version)
 		fmt.Println("trying to bind to " + ServerHost + ":" + ServerPort)
@@ -178,8 +178,8 @@ func serviceUpdate(ctx *gin.Context) {
 		}
 	}
 
-	targetService.Spec.TaskTemplate.ContainerSpec.Env = append(targetService.Spec.TaskTemplate.ContainerSpec.Env, "FLOCKMAN_IMAGE_TAG=" + bodyObject.Tag)
-	targetService.Spec.TaskTemplate.ContainerSpec.Env = append(targetService.Spec.TaskTemplate.ContainerSpec.Env, "FLOCKMAN_IMAGE_REPO=" + oldRepository)
+	targetService.Spec.TaskTemplate.ContainerSpec.Env = append(targetService.Spec.TaskTemplate.ContainerSpec.Env, "FLOCKMAN_IMAGE_TAG="+bodyObject.Tag)
+	targetService.Spec.TaskTemplate.ContainerSpec.Env = append(targetService.Spec.TaskTemplate.ContainerSpec.Env, "FLOCKMAN_IMAGE_REPO="+oldRepository)
 
 	_, err = dockerClient.ServiceUpdate(ctx, targetService.ID, targetService.Version, targetService.Spec, swarm.ServiceUpdateOptions{})
 	if err != nil {
