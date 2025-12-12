@@ -86,7 +86,7 @@ func node(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"node_name": nodeName.Name})
+	ctx.JSON(http.StatusOK, gin.H{"node_name": nodeName.Name, "flockman_version": version})
 }
 
 func serviceStatus(ctx *gin.Context) {
