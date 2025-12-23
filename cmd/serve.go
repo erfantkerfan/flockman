@@ -12,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	nanoid "github.com/aidarkhanov/nanoid/v2"
 	"github.com/docker/docker/api/types/swarm"
 	"github.com/docker/docker/client"
 	"github.com/gin-gonic/gin"
@@ -47,6 +48,7 @@ var serveCmd = &cobra.Command{
 		if err := initDB(); err != nil {
 			return err
 		}
+
 		ginMode := gin.ReleaseMode
 		if ServerDebug {
 			ginMode = gin.DebugMode
@@ -139,6 +141,11 @@ func serviceStatus(ctx *gin.Context) {
 		return
 	}
 
+	if !isValidTokenFormat(bodyObject.Token) {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid token format"})
+		return
+	}
+
 	var service Service
 	if err := db.Where("token = ?", bodyObject.Token).First(&service).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -173,6 +180,11 @@ func serviceUpdate(ctx *gin.Context) {
 	err = ctx.ShouldBindJSON(&bodyObject)
 	if err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if !isValidTokenFormat(bodyObject.Token) {
+		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid token format"})
 		return
 	}
 
@@ -239,6 +251,18 @@ func filterEnvVars(env []string, prefix string) []string {
 		}
 	}
 	return filtered
+}
+
+func isValidTokenFormat(token string) bool {
+	if len(token) != DefaultSize {
+		return false
+	}
+	for _, c := range token {
+		if !strings.ContainsRune(nanoid.DefaultAlphabet, c) {
+			return false
+		}
+	}
+	return true
 }
 
 func isAllowedStopSignal(signal *string) bool {
