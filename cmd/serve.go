@@ -51,6 +51,7 @@ var serveCmd = &cobra.Command{
 		{
 			v1 := api.Group("/v1")
 			{
+				v1.GET("/health", health)
 				v1.GET("/node", node)
 				v1.POST("/service/status", serviceStatus)
 				v1.POST("/service/update", serviceUpdate)
@@ -70,6 +71,10 @@ func init() {
 	serveCmd.Flags().StringVarP(&ServerHost, "host", "H", "127.0.0.1", "listen host")
 	serveCmd.Flags().StringVarP(&ServerPort, "port", "P", "8314", "listen port")
 	serveCmd.Flags().BoolVar(&ServerDebug, "debug", false, "debug mode gin")
+}
+
+func health(ctx *gin.Context) {
+	ctx.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
 func node(ctx *gin.Context) {
