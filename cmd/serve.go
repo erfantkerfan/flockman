@@ -178,6 +178,11 @@ func serviceUpdate(ctx *gin.Context) {
 		}
 	}
 
+	// Filter out existing FLOCKMAN_* env vars to avoid accumulation
+	targetService.Spec.TaskTemplate.ContainerSpec.Env = filterEnvVars(
+		targetService.Spec.TaskTemplate.ContainerSpec.Env,
+		"FLOCKMAN_",
+	)
 	targetService.Spec.TaskTemplate.ContainerSpec.Env = append(targetService.Spec.TaskTemplate.ContainerSpec.Env, "FLOCKMAN_IMAGE_TAG="+bodyObject.Tag)
 	targetService.Spec.TaskTemplate.ContainerSpec.Env = append(targetService.Spec.TaskTemplate.ContainerSpec.Env, "FLOCKMAN_IMAGE_REPO="+oldRepository)
 
@@ -191,6 +196,17 @@ func serviceUpdate(ctx *gin.Context) {
 		"service": service.ServiceName,
 		"image":   targetService.Spec.TaskTemplate.ContainerSpec.Image,
 	})
+}
+
+// filterEnvVars removes environment variables that start with the given prefix
+func filterEnvVars(env []string, prefix string) []string {
+	filtered := make([]string, 0, len(env))
+	for _, e := range env {
+		if !strings.HasPrefix(e, prefix) {
+			filtered = append(filtered, e)
+		}
+	}
+	return filtered
 }
 
 func isAllowedStopSignals(needle *string) (result bool) {
