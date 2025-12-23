@@ -1,6 +1,6 @@
 ## About Flockman
 
-Flockman is tool designed to help DevOps with a simple tool to rollout updates to a swarm cluster using basic rest APIs. some of its features are:
+Flockman is a tool designed to help DevOps with a simple way to rollout updates to a swarm cluster using basic REST APIs. Some of its features are:
 
 - Secure and Simple
 - written in [GO](https://go.dev/)
