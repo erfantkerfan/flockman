@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -10,6 +11,7 @@ import (
 	"github.com/docker/docker/client"
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/cobra"
+	"gorm.io/gorm"
 )
 
 type ServiceStatusRequest struct {
@@ -109,9 +111,12 @@ func serviceStatus(ctx *gin.Context) {
 	}
 
 	var service Service
-	queryResult := db.Where("token = ?", bodyObject.Token).Find(&service)
-	if queryResult.RowsAffected != 1 {
-		ctx.JSON(http.StatusNotFound, gin.H{"error": "token not found"})
+	if err := db.Where("token = ?", bodyObject.Token).First(&service).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": "token not found"})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
@@ -148,9 +153,12 @@ func serviceUpdate(ctx *gin.Context) {
 	}
 
 	var service Service
-	queryResult := db.Where("token = ?", bodyObject.Token).Find(&service)
-	if queryResult.RowsAffected != 1 {
-		ctx.JSON(http.StatusNotFound, gin.H{"error": "token not found"})
+	if err := db.Where("token = ?", bodyObject.Token).First(&service).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			ctx.JSON(http.StatusNotFound, gin.H{"error": "token not found"})
+			return
+		}
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
