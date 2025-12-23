@@ -5,9 +5,7 @@ import (
 	"fmt"
 
 	nanoid "github.com/aidarkhanov/nanoid/v2"
-	"github.com/glebarez/sqlite"
 	"github.com/spf13/cobra"
-	"gorm.io/gorm"
 )
 
 var addCmd = &cobra.Command{
@@ -15,26 +13,29 @@ var addCmd = &cobra.Command{
 	Short: "add a services by its name and get a token",
 	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) != 1 {
-			return errors.New("rm requires only a service name")
+			return errors.New("add requires exactly one service name")
 		}
 		return nil
 	},
-	Run: func(cmd *cobra.Command, args []string) {
-		migrate()
+	RunE: func(cmd *cobra.Command, args []string) error {
+		db, err := getDB()
+		if err != nil {
+			return err
+		}
 		token, err := nanoid.GenerateString(nanoid.DefaultAlphabet, DefaultSize)
 		if err != nil {
-			panic(fmt.Errorf("%v", err))
-		}
-		db, err := gorm.Open(sqlite.Open(DatabaseFile), &gorm.Config{})
-		if err != nil {
-			panic(fmt.Errorf("%v", err))
+			return fmt.Errorf("failed to generate token: %w", err)
 		}
 		service := Service{Token: token, ServiceName: args[0]}
 		addResult := db.Create(&service)
+		if addResult.Error != nil {
+			return fmt.Errorf("failed to add service: %w", addResult.Error)
+		}
 		if addResult.RowsAffected != 1 {
-			panic(fmt.Errorf("got error with %v rows affected", addResult.RowsAffected))
+			return fmt.Errorf("unexpected rows affected: %d", addResult.RowsAffected)
 		}
 		fmt.Println(token)
+		return nil
 	},
 }
 

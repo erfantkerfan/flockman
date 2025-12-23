@@ -4,9 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/glebarez/sqlite"
 	"github.com/spf13/cobra"
-	"gorm.io/gorm"
 )
 
 var rmCmd = &cobra.Command{
@@ -14,20 +12,23 @@ var rmCmd = &cobra.Command{
 	Short: "remove a services by its name",
 	Args: func(cmd *cobra.Command, args []string) error {
 		if len(args) != 1 {
-			return errors.New("rm requires only a service name")
+			return errors.New("rm requires exactly one service name")
 		}
 		return nil
 	},
-	Run: func(cmd *cobra.Command, args []string) {
-		migrate()
-		db, err := gorm.Open(sqlite.Open(DatabaseFile), &gorm.Config{})
+	RunE: func(cmd *cobra.Command, args []string) error {
+		db, err := getDB()
 		if err != nil {
-			panic(fmt.Errorf("%v", err))
+			return err
 		}
-
-		if deleteResult := db.Where("service_name = ?", args[0]).Delete(&Service{}); deleteResult.RowsAffected != 1 {
-			panic(fmt.Errorf("got error with %v rows affected", deleteResult.RowsAffected))
+		deleteResult := db.Where("service_name = ?", args[0]).Delete(&Service{})
+		if deleteResult.Error != nil {
+			return fmt.Errorf("failed to remove service: %w", deleteResult.Error)
 		}
+		if deleteResult.RowsAffected == 0 {
+			return fmt.Errorf("service %q not found", args[0])
+		}
+		return nil
 	},
 }
 

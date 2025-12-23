@@ -15,6 +15,9 @@ type Service struct {
 	ServiceName string `gorm:"unique"`
 }
 
+// db is a singleton database connection
+var db *gorm.DB
+
 var serviceCmd = &cobra.Command{
 	Use:   "service",
 	Short: "managing services registered to database",
@@ -24,10 +27,25 @@ func init() {
 	rootCmd.AddCommand(serviceCmd)
 }
 
-func migrate() {
-	db, err := gorm.Open(sqlite.Open(DatabaseFile), &gorm.Config{})
+// initDB initializes the database connection and runs migrations
+func initDB() error {
+	var err error
+	db, err = gorm.Open(sqlite.Open(DatabaseFile), &gorm.Config{})
 	if err != nil {
-		panic(fmt.Errorf("%v", err))
+		return fmt.Errorf("failed to open database: %w", err)
 	}
-	db.AutoMigrate(&Service{})
+	if err := db.AutoMigrate(&Service{}); err != nil {
+		return fmt.Errorf("failed to migrate database: %w", err)
+	}
+	return nil
+}
+
+// getDB returns the database connection, initializing it if needed
+func getDB() (*gorm.DB, error) {
+	if db == nil {
+		if err := initDB(); err != nil {
+			return nil, err
+		}
+	}
+	return db, nil
 }

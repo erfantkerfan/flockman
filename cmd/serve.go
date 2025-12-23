@@ -9,9 +9,7 @@ import (
 	"github.com/docker/docker/api/types/swarm"
 	"github.com/docker/docker/client"
 	"github.com/gin-gonic/gin"
-	"github.com/glebarez/sqlite"
 	"github.com/spf13/cobra"
-	"gorm.io/gorm"
 )
 
 type ServiceStatusRequest struct {
@@ -38,8 +36,10 @@ var (
 var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "start an api web server for updating services",
-	Run: func(cmd *cobra.Command, args []string) {
-		migrate()
+	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := initDB(); err != nil {
+			return err
+		}
 		ginMode := gin.ReleaseMode
 		if ServerDebug {
 			ginMode = gin.DebugMode
@@ -60,7 +60,7 @@ var serveCmd = &cobra.Command{
 
 		fmt.Println("version: " + version)
 		fmt.Println("trying to bind to " + ServerHost + ":" + ServerPort)
-		router.Run(ServerHost + ":" + ServerPort)
+		return router.Run(ServerHost + ":" + ServerPort)
 	},
 }
 
@@ -103,11 +103,6 @@ func serviceStatus(ctx *gin.Context) {
 		return
 	}
 
-	db, err := gorm.Open(sqlite.Open(DatabaseFile), &gorm.Config{})
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
 	var service Service
 	queryResult := db.Where("token = ?", bodyObject.Token).Find(&service)
 	if queryResult.RowsAffected != 1 {
@@ -147,11 +142,6 @@ func serviceUpdate(ctx *gin.Context) {
 		return
 	}
 
-	db, err := gorm.Open(sqlite.Open(DatabaseFile), &gorm.Config{})
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
 	var service Service
 	queryResult := db.Where("token = ?", bodyObject.Token).Find(&service)
 	if queryResult.RowsAffected != 1 {
