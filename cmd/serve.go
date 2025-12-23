@@ -41,6 +41,18 @@ var (
 	ServerDebug bool
 )
 
+func newDockerClient() (*client.Client, error) {
+	return client.NewClientWithOpts(client.WithHost(DockerHost))
+}
+
+func findServiceByToken(token string) (*Service, error) {
+	var service Service
+	if err := db.Where("token = ?", token).First(&service).Error; err != nil {
+		return nil, err
+	}
+	return &service, nil
+}
+
 var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "start an api web server for updating services",
@@ -111,43 +123,36 @@ func health(ctx *gin.Context) {
 }
 
 func node(ctx *gin.Context) {
-	dockerClient, err := client.NewClientWithOpts(client.WithHost(DockerHost))
+	dc, err := newDockerClient()
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	defer dockerClient.Close()
+	defer dc.Close()
 
-	nodeName, err := dockerClient.Info(context.Background())
+	info, err := dc.Info(ctx)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{"node_name": nodeName.Name, "flockman_version": version})
+	ctx.JSON(http.StatusOK, gin.H{"node_name": info.Name, "flockman_version": version})
 }
 
 func serviceStatus(ctx *gin.Context) {
-	dockerClient, err := client.NewClientWithOpts(client.WithHost(DockerHost))
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	defer dockerClient.Close()
-
-	bodyObject := ServiceStatusRequest{}
-	if err := ctx.BindJSON(&bodyObject); err != nil {
+	var body ServiceStatusRequest
+	if err := ctx.BindJSON(&body); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if !isValidTokenFormat(bodyObject.Token) {
+	if !isValidTokenFormat(body.Token) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid token format"})
 		return
 	}
 
-	var service Service
-	if err := db.Where("token = ?", bodyObject.Token).First(&service).Error; err != nil {
+	service, err := findServiceByToken(body.Token)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			ctx.JSON(http.StatusNotFound, gin.H{"error": "token not found"})
 			return
@@ -156,7 +161,14 @@ func serviceStatus(ctx *gin.Context) {
 		return
 	}
 
-	targetService, _, err := dockerClient.ServiceInspectWithRaw(ctx, service.ServiceName, swarm.ServiceInspectOptions{})
+	dc, err := newDockerClient()
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer dc.Close()
+
+	targetService, _, err := dc.ServiceInspectWithRaw(ctx, service.ServiceName, swarm.ServiceInspectOptions{})
 	if err != nil {
 		ctx.JSON(http.StatusUnprocessableEntity, gin.H{"error": "docker service could not be retrieved or non existent"})
 		return
@@ -169,32 +181,24 @@ func serviceStatus(ctx *gin.Context) {
 }
 
 func serviceUpdate(ctx *gin.Context) {
-	dockerClient, err := client.NewClientWithOpts(client.WithHost(DockerHost))
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	defer dockerClient.Close()
-
-	bodyObject := ServiceUpdateRequest{}
-	err = ctx.ShouldBindJSON(&bodyObject)
-	if err != nil {
+	var body ServiceUpdateRequest
+	if err := ctx.ShouldBindJSON(&body); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	if !isValidTokenFormat(bodyObject.Token) {
+	if !isValidTokenFormat(body.Token) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid token format"})
 		return
 	}
 
-	if !isAllowedStopSignal(&bodyObject.StopSignal) {
+	if !isAllowedStopSignal(&body.StopSignal) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "stop signal not valid"})
 		return
 	}
 
-	var service Service
-	if err := db.Where("token = ?", bodyObject.Token).First(&service).Error; err != nil {
+	service, err := findServiceByToken(body.Token)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			ctx.JSON(http.StatusNotFound, gin.H{"error": "token not found"})
 			return
@@ -203,34 +207,35 @@ func serviceUpdate(ctx *gin.Context) {
 		return
 	}
 
-	targetService, _, err := dockerClient.ServiceInspectWithRaw(ctx, service.ServiceName, swarm.ServiceInspectOptions{})
+	dc, err := newDockerClient()
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+	defer dc.Close()
+
+	targetService, _, err := dc.ServiceInspectWithRaw(ctx, service.ServiceName, swarm.ServiceInspectOptions{})
 	if err != nil {
 		ctx.JSON(http.StatusUnprocessableEntity, gin.H{"error": "docker service could not be retrieved or non existent"})
 		return
 	}
 
 	oldRepository, _ := repoAndTagFromImage(targetService.Spec.TaskTemplate.ContainerSpec.Image)
-	targetService.Spec.TaskTemplate.ContainerSpec.Image = oldRepository + bodyObject.Tag
-	targetService.Spec.TaskTemplate.ContainerSpec.StopSignal = bodyObject.StopSignal
+	targetService.Spec.TaskTemplate.ContainerSpec.Image = oldRepository + body.Tag
+	targetService.Spec.TaskTemplate.ContainerSpec.StopSignal = body.StopSignal
 	targetService.Spec.UpdateConfig = &swarm.UpdateConfig{
 		FailureAction: swarm.UpdateFailureActionRollback,
 	}
-	if bodyObject.StartFirst {
-		targetService.Spec.UpdateConfig = &swarm.UpdateConfig{
-			FailureAction: swarm.UpdateFailureActionRollback,
-			Order:         swarm.UpdateOrderStartFirst,
-		}
+	if body.StartFirst {
+		targetService.Spec.UpdateConfig.Order = swarm.UpdateOrderStartFirst
 	}
 
 	// Filter out existing FLOCKMAN_* env vars to avoid accumulation
-	targetService.Spec.TaskTemplate.ContainerSpec.Env = filterEnvVars(
-		targetService.Spec.TaskTemplate.ContainerSpec.Env,
-		"FLOCKMAN_",
-	)
-	targetService.Spec.TaskTemplate.ContainerSpec.Env = append(targetService.Spec.TaskTemplate.ContainerSpec.Env, "FLOCKMAN_IMAGE_TAG="+bodyObject.Tag)
-	targetService.Spec.TaskTemplate.ContainerSpec.Env = append(targetService.Spec.TaskTemplate.ContainerSpec.Env, "FLOCKMAN_IMAGE_REPO="+oldRepository)
+	env := filterEnvVars(targetService.Spec.TaskTemplate.ContainerSpec.Env, "FLOCKMAN_")
+	env = append(env, "FLOCKMAN_IMAGE_TAG="+body.Tag, "FLOCKMAN_IMAGE_REPO="+oldRepository)
+	targetService.Spec.TaskTemplate.ContainerSpec.Env = env
 
-	_, err = dockerClient.ServiceUpdate(ctx, targetService.ID, targetService.Version, targetService.Spec, swarm.ServiceUpdateOptions{})
+	_, err = dc.ServiceUpdate(ctx, targetService.ID, targetService.Version, targetService.Spec, swarm.ServiceUpdateOptions{})
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -287,7 +292,5 @@ func repoAndTagFromImage(image string) (repo string, tag string) {
 		return image + ":", ""
 	}
 
-	repo = image[:lastColon+1]
-	tag = image[lastColon+1:]
-	return
+	return image[:lastColon+1], image[lastColon+1:]
 }
