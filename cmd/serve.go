@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"slices"
 	"strings"
 	"syscall"
 	"time"
@@ -175,7 +176,7 @@ func serviceUpdate(ctx *gin.Context) {
 		return
 	}
 
-	if !isAllowedStopSignals(&bodyObject.StopSignal) {
+	if !isAllowedStopSignal(&bodyObject.StopSignal) {
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "stop signal not valid"})
 		return
 	}
@@ -240,19 +241,12 @@ func filterEnvVars(env []string, prefix string) []string {
 	return filtered
 }
 
-func isAllowedStopSignals(needle *string) (result bool) {
-	if *needle == "" {
-		*needle = DefaultStopSignal
+func isAllowedStopSignal(signal *string) bool {
+	if *signal == "" {
+		*signal = DefaultStopSignal
 		return true
 	}
-
-	for _, v := range AllowedStopSignals {
-		if v == *needle {
-			return true
-		}
-	}
-
-	return false
+	return slices.Contains(AllowedStopSignals[:], *signal)
 }
 
 func repoAndTagFromImage(image string) (repo string, tag string) {
