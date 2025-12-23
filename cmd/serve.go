@@ -209,7 +209,20 @@ func isAllowedStopSignals(needle *string) (result bool) {
 }
 
 func repoAndTagFromImage(image string) (repo string, tag string) {
-	repo = strings.SplitAfter(strings.SplitAfter(image, "@")[0], ":")[0]
-	tag = strings.TrimSuffix(strings.SplitAfter(strings.SplitAfter(image, "@")[0], ":")[1], "@")
+	// Remove digest if present (everything after @)
+	if idx := strings.Index(image, "@"); idx != -1 {
+		image = image[:idx]
+	}
+
+	lastColon := strings.LastIndex(image, ":")
+	lastSlash := strings.LastIndex(image, "/")
+
+	// If colon comes before slash, it's part of the registry, not the tag
+	if lastColon == -1 || lastColon < lastSlash {
+		return image + ":", ""
+	}
+
+	repo = image[:lastColon+1]
+	tag = image[lastColon+1:]
 	return
 }
