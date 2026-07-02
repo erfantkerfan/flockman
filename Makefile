@@ -14,4 +14,7 @@ clean:
 	go clean
 	rm -f $(BINARY_NAME)
 
-.PHONY: build run serve clean
+test:
+	go test ./...
+
+.PHONY: build run serve clean test
