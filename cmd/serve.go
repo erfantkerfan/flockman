@@ -38,6 +38,8 @@ var (
 	DockerHost  string
 	ServerHost  string
 	ServerPort  string
+	MetricsHost string
+	MetricsPort string
 	ServerDebug bool
 )
 
@@ -57,9 +59,15 @@ var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "start an api web server for updating services",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := validateMetricsPort(MetricsHost, MetricsPort); err != nil {
+			return err
+		}
+
 		if err := initDB(); err != nil {
 			return err
 		}
+
+		initMetrics()
 
 		ginMode := gin.ReleaseMode
 		if ServerDebug {
@@ -67,6 +75,7 @@ var serveCmd = &cobra.Command{
 		}
 		gin.SetMode(ginMode)
 		router := gin.Default()
+		router.Use(metricsMiddleware())
 
 		api := router.Group("/api")
 		{
@@ -94,6 +103,18 @@ var serveCmd = &cobra.Command{
 			}
 		}()
 
+		var metricsSrv *http.Server
+		if MetricsPort != "" {
+			metricsAddr := MetricsHost + ":" + MetricsPort
+			metricsSrv = newMetricsServer(metricsAddr)
+			fmt.Println("metrics exporter listening on " + metricsAddr)
+			go func() {
+				if err := metricsSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+					fmt.Fprintf(os.Stderr, "metrics listen error: %s\n", err)
+				}
+			}()
+		}
+
 		quit := make(chan os.Signal, 1)
 		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 		<-quit
@@ -103,6 +124,13 @@ var serveCmd = &cobra.Command{
 		defer cancel()
 		if err := srv.Shutdown(ctx); err != nil {
 			return fmt.Errorf("server forced to shutdown: %w", err)
+		}
+		if metricsSrv != nil {
+			mctx, mcancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer mcancel()
+			if err := metricsSrv.Shutdown(mctx); err != nil {
+				return fmt.Errorf("metrics server forced to shutdown: %w", err)
+			}
 		}
 
 		fmt.Println("server exited gracefully")
@@ -115,6 +143,8 @@ func init() {
 	serveCmd.Flags().StringVarP(&DockerHost, "docker", "S", "unix:///var/run/docker.sock", "docker host")
 	serveCmd.Flags().StringVarP(&ServerHost, "host", "H", "127.0.0.1", "listen host")
 	serveCmd.Flags().StringVarP(&ServerPort, "port", "P", "8314", "listen port")
+	serveCmd.Flags().StringVarP(&MetricsPort, "metrics-port", "M", "", "prometheus metrics listen port (disabled when empty)")
+	serveCmd.Flags().StringVarP(&MetricsHost, "metrics-host", "", "127.0.0.1", "prometheus metrics listen host")
 	serveCmd.Flags().BoolVar(&ServerDebug, "debug", false, "debug mode gin")
 }
 
@@ -130,7 +160,9 @@ func node(ctx *gin.Context) {
 	}
 	defer dc.Close()
 
+	started := time.Now()
 	info, err := dc.Info(ctx)
+	observeDockerAPI("info", started, err)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
@@ -142,11 +174,14 @@ func node(ctx *gin.Context) {
 func serviceStatus(ctx *gin.Context) {
 	var body ServiceStatusRequest
 	if err := ctx.BindJSON(&body); err != nil {
+		recordServiceStatus("bad_request")
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	if !isValidTokenFormat(body.Token) {
+		recordTokenLookup("invalid_format")
+		recordServiceStatus("bad_request")
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid token format"})
 		return
 	}
@@ -154,26 +189,36 @@ func serviceStatus(ctx *gin.Context) {
 	service, err := findServiceByToken(body.Token)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			recordTokenLookup("not_found")
+			recordServiceStatus("unauthorized")
 			ctx.JSON(http.StatusNotFound, gin.H{"error": "token not found"})
 			return
 		}
+		recordTokenLookup("error")
+		recordServiceStatus("error")
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	recordTokenLookup("found")
 
 	dc, err := newDockerClient()
 	if err != nil {
+		recordServiceStatus("docker_error")
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	defer dc.Close()
 
+	started := time.Now()
 	targetService, _, err := dc.ServiceInspectWithRaw(ctx, service.ServiceName, swarm.ServiceInspectOptions{})
+	observeDockerAPI("service_inspect", started, err)
 	if err != nil {
+		recordServiceStatus("service_missing")
 		ctx.JSON(http.StatusUnprocessableEntity, gin.H{"error": "docker service could not be retrieved or non existent"})
 		return
 	}
 
+	recordServiceStatus("ok")
 	ctx.JSON(http.StatusOK, gin.H{
 		"service": service.ServiceName,
 		"image":   targetService.Spec.TaskTemplate.ContainerSpec.Image,
@@ -181,18 +226,25 @@ func serviceStatus(ctx *gin.Context) {
 }
 
 func serviceUpdate(ctx *gin.Context) {
+	started := time.Now()
+	defer observeServiceUpdateDuration(started)
+
 	var body ServiceUpdateRequest
 	if err := ctx.ShouldBindJSON(&body); err != nil {
+		recordServiceUpdate("bad_request", false)
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
 	if !isValidTokenFormat(body.Token) {
+		recordTokenLookup("invalid_format")
+		recordServiceUpdate("bad_request", body.StartFirst)
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "invalid token format"})
 		return
 	}
 
 	if !isAllowedStopSignal(&body.StopSignal) {
+		recordServiceUpdate("invalid_stop_signal", body.StartFirst)
 		ctx.JSON(http.StatusBadRequest, gin.H{"error": "stop signal not valid"})
 		return
 	}
@@ -200,22 +252,31 @@ func serviceUpdate(ctx *gin.Context) {
 	service, err := findServiceByToken(body.Token)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
+			recordTokenLookup("not_found")
+			recordServiceUpdate("unauthorized", body.StartFirst)
 			ctx.JSON(http.StatusNotFound, gin.H{"error": "token not found"})
 			return
 		}
+		recordTokenLookup("error")
+		recordServiceUpdate("error", body.StartFirst)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	recordTokenLookup("found")
 
 	dc, err := newDockerClient()
 	if err != nil {
+		recordServiceUpdate("docker_error", body.StartFirst)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	defer dc.Close()
 
+	inspectStarted := time.Now()
 	targetService, _, err := dc.ServiceInspectWithRaw(ctx, service.ServiceName, swarm.ServiceInspectOptions{})
+	observeDockerAPI("service_inspect", inspectStarted, err)
 	if err != nil {
+		recordServiceUpdate("service_missing", body.StartFirst)
 		ctx.JSON(http.StatusUnprocessableEntity, gin.H{"error": "docker service could not be retrieved or non existent"})
 		return
 	}
@@ -235,12 +296,16 @@ func serviceUpdate(ctx *gin.Context) {
 	env = append(env, "FLOCKMAN_IMAGE_TAG="+body.Tag, "FLOCKMAN_IMAGE_REPO="+oldRepository)
 	targetService.Spec.TaskTemplate.ContainerSpec.Env = env
 
+	updateStarted := time.Now()
 	_, err = dc.ServiceUpdate(ctx, targetService.ID, targetService.Version, targetService.Spec, swarm.ServiceUpdateOptions{})
+	observeDockerAPI("service_update", updateStarted, err)
 	if err != nil {
+		recordServiceUpdate("docker_error", body.StartFirst)
 		ctx.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
+	recordServiceUpdate("ok", body.StartFirst)
 	ctx.JSON(http.StatusOK, gin.H{
 		"service": service.ServiceName,
 		"image":   targetService.Spec.TaskTemplate.ContainerSpec.Image,
