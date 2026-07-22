@@ -51,72 +51,6 @@
     },
     {
       "id": 1,
-      "title": "Targets up",
-      "type": "stat",
-      "datasource": {
-        "type": "prometheus",
-        "uid": "${datasource}"
-      },
-      "gridPos": {
-        "h": 4,
-        "w": 4,
-        "x": 0,
-        "y": 1
-      },
-      "targets": [
-        {
-          "datasource": {
-            "type": "prometheus",
-            "uid": "${datasource}"
-          },
-          "editorMode": "code",
-          "expr": "count(up{job=~\"$job\", instance=~\"$instance\"} == 1) or vector(0)",
-          "legendFormat": "up",
-          "refId": "A",
-          "range": false,
-          "instant": true
-        }
-      ],
-      "fieldConfig": {
-        "defaults": {
-          "color": {
-            "mode": "thresholds"
-          },
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              {
-                "color": "red",
-                "value": null
-              },
-              {
-                "color": "green",
-                "value": 1
-              }
-            ]
-          },
-          "unit": "short",
-          "mappings": []
-        },
-        "overrides": []
-      },
-      "options": {
-        "colorMode": "value",
-        "graphMode": "area",
-        "justifyMode": "auto",
-        "orientation": "auto",
-        "reduceOptions": {
-          "calcs": [
-            "lastNotNull"
-          ],
-          "fields": "",
-          "values": false
-        },
-        "textMode": "auto"
-      }
-    },
-    {
-      "id": 2,
       "title": "Version",
       "type": "stat",
       "datasource": {
@@ -125,8 +59,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 4,
-        "x": 4,
+        "w": 6,
+        "x": 0,
         "y": 1
       },
       "targets": [
@@ -172,14 +106,14 @@
           "calcs": [
             "lastNotNull"
           ],
-          "fields": "/.*/",
+          "fields": "",
           "values": false
         },
         "textMode": "name"
       }
     },
     {
-      "id": 3,
+      "id": 2,
       "title": "Registered services",
       "type": "stat",
       "datasource": {
@@ -188,8 +122,8 @@
       },
       "gridPos": {
         "h": 4,
-        "w": 4,
-        "x": 8,
+        "w": 6,
+        "x": 6,
         "y": 1
       },
       "targets": [
@@ -241,7 +175,7 @@
       }
     },
     {
-      "id": 4,
+      "id": 3,
       "title": "Request rate",
       "type": "stat",
       "datasource": {
@@ -303,7 +237,7 @@
       }
     },
     {
-      "id": 5,
+      "id": 4,
       "title": "HTTP error rate",
       "type": "stat",
       "datasource": {
@@ -373,7 +307,7 @@
       }
     },
     {
-      "id": 6,
+      "id": 5,
       "title": "Update success rate",
       "type": "stat",
       "datasource": {
@@ -452,7 +386,7 @@
       },
       "id": 80000,
       "panels": [],
-      "title": "HTTP (RED)",
+      "title": "HTTP",
       "type": "row"
     },
     {
@@ -1538,7 +1472,7 @@
     ]
   },
   "time": {
-    "from": "now-6h",
+    "from": "now-1h",
     "to": "now"
   },
   "timepicker": {},
