@@ -29,6 +29,12 @@ scrape_configs:
       - targets: ["127.0.0.1:8315"]
 ```
 
+### Grafana dashboard
+
+Import [`deploy/grafana/flockman-dashboard.json`](deploy/grafana/flockman-dashboard.json) via **Dashboards → New → Import**, or provision it from that path.
+
+The dashboard uses Prometheus template variables (`datasource`, `job`, `instance`) and `$__rate_interval` for rate/histogram queries. Pick your Prometheus datasource after import if Grafana does not resolve `${datasource}` automatically.
+
 ## api documentation
 
 <details>
